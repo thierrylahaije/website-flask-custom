@@ -4,3 +4,5 @@ __pycache__/
 .sass-cache
 static/files
 .DS_Store
+flask-session
+
