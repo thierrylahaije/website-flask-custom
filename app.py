@@ -1,11 +1,14 @@
-from flask import Flask, render_template, request, redirect, abort
+from flask import Flask, render_template, request, redirect, abort, session, jsonify, g
 from flask_assets import Environment, Bundle
 from datetime import datetime
 from functions import build_data_dict, fetch_contributions_for_the_single_contributor, generate_table_of_contents, get_breadcrumbs, find_related_articles, calculate_reading_time, fetch_meta_data, recently_published
 import os
-from models import db, articles, Contributors, blogs, Topics
+from models import db, articles, Contributors, blogs, Topics, PageViews
 from html_parser import htmlize
 from redirectstsh import setup_redirects
+from flask_session import Session
+from datetime import datetime
+from collections import defaultdict
 
 # Initialize App
 app = Flask(__name__, static_url_path='/static')
@@ -30,6 +33,11 @@ app.config['REMEMBER_COOKIE_SECURE'] = True  # Only false when Debugging
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Only false when Debugging
 app.config['REMEMBER_COOKIE_HTTPONLY'] = True  # Only false when Debugging
 
+# Session Settings (admin)
+app.config['SECRET_KEY'] = 'supersecretkey'
+app.config['SESSION_TYPE'] = 'filesystem'
+Session(app)
+
 # Initialize SQLAlchemy with the app
 db.init_app(app)
 
@@ -51,6 +59,115 @@ def formatdate(value, format="%Y-%m-%d"):
         return ""
     date = datetime.strptime(value, "%Y-%m-%dT%H:%M:%S%z")
     return date.strftime(format)
+
+### ADMIN AREA ###
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    return render_template('admin/dashboard.html')
+
+@app.route('/admin/write-article')
+def admin_write_article():
+    return render_template('admin/write-article.html')
+
+@app.route('/admin/render', methods=['GET'])
+def render_template_view():
+
+    # Render content
+    content = session.get('content', 'Dit is de standaard inhoud van render.html.')
+    article_content = htmlize(content)
+    table_of_contents = generate_table_of_contents(content)
+    if (len(content) > 0):
+            reading_time = calculate_reading_time(content)
+
+    # Render variables
+    title = session.get('title', 'Default Title')
+    description = session.get('description', 'Default Description')
+    author = session.get('author', 'Default Author')
+    draft = session.get('draft', 'false')
+    data_dict = build_data_dict(Topics, articles)
+    return render_template('admin/render/render.html', 
+                           content=article_content, 
+                           title=title, 
+                           description=description, 
+                           author=author, 
+                           draft=draft,
+                           assets=assets,
+                           table_of_contents=table_of_contents, reading_time=reading_time, data_dict=data_dict)
+
+@app.route('/update_content', methods=['POST'])
+def update_content():
+    data = request.get_json()
+    session['content'] = data.get('content', '')
+    session['title'] = data.get('title', 'Default Title')
+    session['description'] = data.get('description', 'Default Description')
+    session['author'] = data.get('author', 'Default Author')
+    session['draft'] = data.get('draft', 'false')
+    return jsonify({'success': True})
+
+### END ADMIN AREA
+### STATS AREA
+@app.route('/api/pageview', methods=['POST'])
+def store_pageview():
+  # Access data from the AJAX request
+  page_url = request.json.get('page_url')
+
+  if not request.path.startswith('/static'):
+    session_length = request.json.get('session_length')  # Access session length from request
+
+    # Convert start_time from string to datetime object
+    start_time_obj = datetime.now()
+
+    # Create a new PageViews object with the data
+    page_view = PageViews(page=page_url, viewed_date=start_time_obj.date(), viewed_time=start_time_obj.time(), session_length=session_length)
+
+    # Add the object to the database session
+    db.session.add(page_view)
+
+    # Commit the changes to the database
+    db.session.commit()
+
+    return "Pageview data stored successfully!", 201 
+  
+  else:
+    return "Pageview path starts with static.", 403
+
+@app.route('/admin/stats')
+def stats():
+    stats = PageViews.query.all()
+    views_per_day = defaultdict(int)
+    page_stats = defaultdict(lambda: {'count': 0, 'total_session_length': 0})
+    time_per_page = defaultdict(lambda: defaultdict(int))
+    session_length_per_day = defaultdict(lambda: {'total_length': 0, 'count': 0})
+
+    for stat in stats:
+        views_per_day[stat.viewed_date] += 1
+        page_stats[stat.page]['count'] += 1
+        page_stats[stat.page]['total_session_length'] += stat.session_length
+        time_per_page[stat.viewed_date][stat.page] += stat.session_length
+        session_length_per_day[stat.viewed_date]['total_length'] += stat.session_length
+        session_length_per_day[stat.viewed_date]['count'] += 1
+
+    # Prepare data for Morris.js
+    morris_data = [{"y": date.strftime('%Y-%m-%d'), "a": views_per_day[date]} for date in sorted(views_per_day.keys())]
+
+    # Calculate average session length per page
+    page_stats_data = []
+    for page, data in page_stats.items():
+        avg_session_length = data['total_session_length'] / data['count'] if data['count'] > 0 else 0
+        page_stats_data.append({'page': page, 'total_views': data['count'], 'avg_session_length': avg_session_length})
+
+    # Prepare data for average session length per day chart
+    session_length_data = []
+    for date in sorted(session_length_per_day.keys()):
+        total_length = session_length_per_day[date]['total_length']
+        count = session_length_per_day[date]['count']
+        avg_length = total_length / count if count > 0 else 0
+        session_length_data.append({'y': date.strftime('%Y-%m-%d'), 'a': avg_length})
+
+    return render_template('admin/stats/stats.html', stats=stats, morris_data=morris_data, page_stats=page_stats_data, session_length_data=session_length_data)
+
+
+### END STATS AREA
 
 # Home Page
 @app.route('/')
