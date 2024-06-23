@@ -59,3 +59,10 @@ class blogs(db.Model):
     date_modified = db.Column(db.Text)
     draft = db.Column(db.Text)
     content = db.Column(db.Text)
+
+class PageViews(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    page = db.Column(db.Text, nullable=False)
+    viewed_date = db.Column(db.Date, nullable=False)
+    viewed_time = db.Column(db.Time, nullable=False)
+    session_length = db.Column(db.Integer, nullable=False)

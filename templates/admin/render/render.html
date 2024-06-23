@@ -1,0 +1,59 @@
+{% include 'partials/head.html' %}
+<div class="container content px-0 mt-5">
+    <div class="row justify-content-center mx-0">
+        <div class="col-lg-8 col-22 pr-lg-5">
+            <div class="sticky-top pr-lg-3 mb-lg-5 pb-lg-5 d-flex flex-column tableOfContentParent">
+                <h1 class="text-center text-lg-left" style="font-size: 38px; line-height: 48px;">{{ title }}</h1>
+                <sup class="mt-2" style="color: #976B24;font-size: 14px;"><i class="fa-regular fa-clock mr-2"></i>{{ reading_time }} mins </sup>
+                <div class="TableOfContents">
+                    <span class="arrow-icon"></span>
+                    <div class="pseudo-btn"></div>
+                    <nav id="TableOfContents">
+                        <ul>
+                            {% for h2 in table_of_contents %}
+                            <li><a href="#{{ h2.anchor }}">{{ h2.text }}</a>
+                                {% if h2.subheadings %}
+                                <ul>
+                                    {% for h3 in h2.subheadings %}
+                                    <li><a href="#{{ h3.anchor }}">{{ h3.text }}</a></li>
+                                    {% endfor %}
+                                </ul>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+        <article class="col-lg-16 col-22">
+            <div class="p-5 bg-white rounded mb-5">
+                <div class="d-flex justify-content-between mb-4 align-items-center">
+                    <div class="flex-fill">
+                        {% include 'partials/sharelinks.html' %}
+                    </div>
+                </div>
+
+                {% include 'partials/announcement.html' %}
+                {{ content|safe }}
+
+                {% if author %}
+                <div class="admonition author">
+                    <div class="admonition-content">Contributed by
+                        <b><a href="/contributors/{{ author|lower|replace(' ', '-') }}">{{ author }}</a></b>
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="d-flex justify-content-between mt-5 align-items-center">
+                    <div class="d-none d-lg-block">
+                        <a href="https://github.com/tilburgsciencehub/website/issues/new/?template=edit-content-request.yml&title=Suggest+change+to:+{{ current_url }}&labels=edit+content+request"
+                            target="_blank" class="btn btn-secondary">Suggest changes to this page</a>
+                    </div>
+                </div>
+                {% include 'partials/relatedposts.html' %}
+            </div>
+        </article>
+    </div>
+</div>
+{% include 'partials/footer.html' %}

@@ -72,6 +72,17 @@ cursor.execute('''
     )
 ''')
 
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS page_views (
+        id INTEGER PRIMARY KEY,
+        page TEXT NOT NULL,
+        viewed_date DATE NOT NULL,
+        viewed_time TIME NOT NULL,
+        session_length INTEGER NOT NULL
+    )
+''')
+
+
 # Commit the creation of tables
 conn.commit()
 
